@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Upload a folder of code and text files and instantly convert them into a clean, downloadable PDF document.">
+    <title>Folder Extractor — Convert Files to PDF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a1a;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-card-hover: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --text-primary: #f0f0f5;
+            --text-secondary: #8b8ba3;
+            --text-muted: #5c5c75;
+            --accent: #6c5ce7;
+            --accent-light: #a29bfe;
+            --accent-glow: rgba(108, 92, 231, 0.3);
+            --success: #00cec9;
+            --success-glow: rgba(0, 206, 201, 0.25);
+            --error: #ff6b6b;
+            --error-bg: rgba(255, 107, 107, 0.1);
+            --error-border: rgba(255, 107, 107, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(108, 92, 231, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(0, 206, 201, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(162, 155, 254, 0.05) 0%, transparent 50%);
+            animation: bgShift 20s ease-in-out infinite alternate;
+            z-index: 0;
+        }
+
+        @keyframes bgShift {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            100% { transform: translate(-3%, 3%) rotate(2deg); }
+        }
+
+        /* Flash messages */
+        .flash-container {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .flash-message {
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            backdrop-filter: blur(20px);
+            animation: flashIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .flash-error {
+            background: var(--error-bg);
+            border: 1px solid var(--error-border);
+            color: var(--error);
+        }
+
+        @keyframes flashIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Main container */
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 90%;
+            max-width: 540px;
+            padding: 20px;
+        }
+
+        /* Logo area */
+        .logo {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+
+        .logo-icon {
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px var(--accent-glow);
+            animation: logoFloat 4s ease-in-out infinite;
+        }
+
+        @keyframes logoFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 32px;
+            backdrop-filter: blur(24px);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+        }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 14px;
+            padding: 40px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(108, 92, 231, 0.05);
+        }
+
+        .drop-zone.drag-over {
+            box-shadow: inset 0 0 30px var(--accent-glow);
+        }
+
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+
+        .drop-zone:hover .drop-zone-icon {
+            transform: scale(1.1);
+        }
+
+        .drop-zone-text {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .drop-zone-hint {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* File info bar */
+        .file-info {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: var(--success-glow);
+            border: 1px solid rgba(0, 206, 201, 0.2);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--success);
+            font-weight: 500;
+            animation: slideUp 0.3s ease;
+        }
+
+        .file-info.visible {
+            display: flex;
+        }
+
+        .file-info-icon {
+            font-size: 1.2rem;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Supported formats */
+        .formats {
+            margin-top: 20px;
+            padding: 14px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .formats-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .formats-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .format-tag {
+            font-size: 0.72rem;
+            padding: 3px 8px;
+            background: rgba(108, 92, 231, 0.1);
+            color: var(--accent-light);
+            border-radius: 5px;
+            font-weight: 500;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        /* Submit button */
+        .submit-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            margin-top: 24px;
+            padding: 16px 24px;
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            background: linear-gradient(135deg, var(--accent), #7c6cf0);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px var(--accent-glow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .submit-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px var(--accent-glow);
+        }
+
+        .submit-btn:hover::before {
+            opacity: 1;
+        }
+
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .submit-btn .btn-icon {
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .submit-btn:hover .btn-icon {
+            transform: translateX(3px);
+        }
+
+        /* Loading state */
+        .submit-btn.loading {
+            pointer-events: none;
+        }
+
+        .submit-btn.loading .btn-text {
+            opacity: 0;
+        }
+
+        .spinner {
+            display: none;
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        .submit-btn.loading .spinner {
+            display: block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 32px;
+            text-align: center;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .footer a {
+            color: var(--accent-light);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer a:hover {
+            color: var(--accent);
+        }
+
+        /* Particle dots */
+        .particle {
+            position: fixed;
+            width: 3px;
+            height: 3px;
+            background: var(--accent-light);
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes particleFade {
+            0% { opacity: 0; transform: translateY(0) scale(0); }
+            50% { opacity: 0.6; }
+            100% { opacity: 0; transform: translateY(-100px) scale(1); }
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container {
+                width: 95%;
+                padding: 16px;
+            }
+
+            .card {
+                padding: 24px;
+            }
+
+            .logo h1 {
+                font-size: 1.5rem;
+            }
+
+            .drop-zone {
+                padding: 32px 16px;
+            }
+
+            .drop-zone-icon {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container" id="flashContainer">
+        {% for category, message in messages %}
+        <div class="flash-message flash-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Decorative particles -->
+    <div class="particle" style="left:10%; top:20%; animation: particleFade 6s 0s infinite;"></div>
+    <div class="particle" style="left:85%; top:15%; animation: particleFade 8s 1s infinite;"></div>
+    <div class="particle" style="left:70%; top:70%; animation: particleFade 7s 2s infinite;"></div>
+    <div class="particle" style="left:25%; top:80%; animation: particleFade 9s 0.5s infinite;"></div>
+    <div class="particle" style="left:50%; top:30%; animation: particleFade 6s 3s infinite;"></div>
+
+    <div class="container">
+        <!-- Logo -->
+        <div class="logo">
+            <div class="logo-icon">📂</div>
+            <h1>Folder Extractor</h1>
+            <p>Upload a folder of code & text files — get a clean PDF instantly.</p>
+        </div>
+
+        <!-- Main Card -->
+        <form class="card" id="uploadForm" action="/upload" method="POST" enctype="multipart/form-data">
+            <!-- Drop Zone -->
+            <div class="drop-zone" id="dropZone">
+                <span class="drop-zone-icon">📁</span>
+                <div class="drop-zone-text">Select a Folder</div>
+                <div class="drop-zone-hint">Click to browse or drag & drop</div>
+                <input
+                    type="file"
+                    name="files"
+                    id="fileInput"
+                    webkitdirectory
+                    directory
+                    multiple
+                    required
+                >
+            </div>
+
+            <!-- File Info -->
+            <div class="file-info" id="fileInfo">
+                <span class="file-info-icon">✅</span>
+                <span id="fileInfoText">0 files selected</span>
+            </div>
+
+            <!-- Supported Formats -->
+            <div class="formats">
+                <div class="formats-label">Supported Formats</div>
+                <div class="formats-list">
+                    <span class="format-tag">.py</span>
+                    <span class="format-tag">.js</span>
+                    <span class="format-tag">.html</span>
+                    <span class="format-tag">.css</span>
+                    <span class="format-tag">.json</span>
+                    <span class="format-tag">.txt</span>
+                    <span class="format-tag">.md</span>
+                    <span class="format-tag">.java</span>
+                    <span class="format-tag">.cpp</span>
+                    <span class="format-tag">.sql</span>
+                    <span class="format-tag">+20 more</span>
+                </div>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="submit-btn" id="submitBtn" disabled>
+                <div class="spinner"></div>
+                <span class="btn-text">Extract & Convert to PDF</span>
+                <span class="btn-icon">→</span>
+            </button>
+        </form>
+
+        <!-- Footer -->
+        <div class="footer">
+            Build by Techerror &middot; All processing happens locally
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileInfoText = document.getElementById('fileInfoText');
+        const submitBtn = document.getElementById('submitBtn');
+        const uploadForm = document.getElementById('uploadForm');
+
+        // File input change
+        fileInput.addEventListener('change', () => {
+            const count = fileInput.files.length;
+            if (count > 0) {
+                fileInfo.classList.add('visible');
+
+                // Count text files
+                const textExts = ['.txt','.py','.html','.css','.js','.json','.md','.jsx','.tsx',
+                    '.ts','.xml','.yml','.yaml','.csv','.env','.cfg','.ini','.sh','.bat',
+                    '.sql','.java','.c','.cpp','.h','.hpp','.rb','.php','.go','.rs',
+                    '.swift','.kt','.r','.log','.conf','.toml'];
+                let textCount = 0;
+                for (const f of fileInput.files) {
+                    const ext = '.' + f.name.split('.').pop().toLowerCase();
+                    if (textExts.includes(ext)) textCount++;
+                }
+
+                fileInfoText.textContent = `${count} files found · ${textCount} text files will be extracted`;
+                submitBtn.disabled = false;
+            } else {
+                fileInfo.classList.remove('visible');
+                submitBtn.disabled = true;
+            }
+        });
+
+        // Drag events
+        ['dragenter', 'dragover'].forEach(evt => {
+            dropZone.addEventListener(evt, e => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+            });
+        });
+
+        // Form submit — loading state
+        uploadForm.addEventListener('submit', () => {
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+        });
+
+        // Auto-dismiss flash messages
+        setTimeout(() => {
+            const flash = document.getElementById('flashContainer');
+            if (flash) {
+                flash.style.transition = 'opacity 0.4s ease';
+                flash.style.opacity = '0';
+                setTimeout(() => flash.remove(), 400);
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
